@@ -1,0 +1,8 @@
+[package]
+name = "telemetry"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sysinfo = { version = "0.38.3", default-features = false, features = ["system"] }
+uuid = { version = "1.21.0", features = ["v4"] }
