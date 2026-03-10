@@ -15,15 +15,15 @@ pub enum LogLevel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LogValue<const CAP: usize> {
+pub enum LogValue<const STR: usize> {
     Int(i64),
     Float(f64),
     Bool(bool),
-    Str(ArrayString<CAP>),
+    Str(ArrayString<STR>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LogEvent<const CAP: usize> {
+pub enum LogEvent<const STR: usize> {
     // -- Standard Events ---
     Start(&'static str),
     End(&'static str),
@@ -32,15 +32,15 @@ pub enum LogEvent<const CAP: usize> {
     Reallocations(u64),
 
     // --- User Events ---
-    Message(ArrayString<CAP>),
-    Metric(ArrayString<CAP>, LogValue<CAP>),
+    Message(ArrayString<STR>),
+    Metric(ArrayString<STR>, LogValue<STR>),
 
     // --- System Events ---
-    SystemName(Option<ArrayString<CAP>>),
-    SystemKernelVersion(Option<ArrayString<CAP>>),
-    SystemOsVersion(Option<ArrayString<CAP>>),
-    SystemHostName(Option<ArrayString<CAP>>),
-    SystemCpuArchitecture(ArrayString<CAP>),
+    SystemName(Option<ArrayString<STR>>),
+    SystemKernelVersion(Option<ArrayString<STR>>),
+    SystemOsVersion(Option<ArrayString<STR>>),
+    SystemHostName(Option<ArrayString<STR>>),
+    SystemCpuArchitecture(ArrayString<STR>),
     SystemCoreCount(Option<usize>),
     SystemBootTime(u64),
     SystemUptime(u64),
@@ -64,17 +64,17 @@ pub enum LogEvent<const CAP: usize> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Log<const CAP: usize> {
+pub struct Log<const STR: usize> {
     pub timestamp: u64,
     pub level: LogLevel,
-    pub event: LogEvent<CAP>,
+    pub event: LogEvent<STR>,
 
     pub logger_id: Uuid,
     pub parent_logger_id: Option<Uuid>,
 }
 
-impl<const CAP: usize> Log<CAP> {
-    pub fn new(level: LogLevel, event: LogEvent<CAP>, logger_id: Uuid, parent_logger_id: Option<Uuid>) -> Self {
+impl<const STR: usize> Log<STR> {
+    pub fn new(level: LogLevel, event: LogEvent<STR>, logger_id: Uuid, parent_logger_id: Option<Uuid>) -> Self {
         let timestamp: u64 = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos() as u64;
 
         Self {
@@ -88,7 +88,7 @@ impl<const CAP: usize> Log<CAP> {
     }
 }
 
-impl<const CAP: usize> fmt::Display for Log<CAP> {
+impl<const STR: usize> fmt::Display for Log<STR> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f, "{:?} [{:?}] - {:?} --- [id: {:?} | parent_id: {:?}]", 
