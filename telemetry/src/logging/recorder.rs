@@ -1,16 +1,11 @@
-use super::log::{Log, LogLevel, LogEvent};
 use super::metrics::*;
-use uuid::Uuid;
+use super::log::{Log, LogLevel, LogEvent};
+use super::router::{Reference};
 use std::time::Instant;
+use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 use arrayvec::ArrayVec;
-
-const HOT_VEC_CAP: usize = 8; 
-const DEFAULT_VEC_CAP: usize = 32;
-const FULL_VEC_CAP: usize = 64;
-
-const HOT_STR_CAP: usize = 32; // Short identifiers only: asset names (e.g. "EUR-USD"), order sides ("BUY"/"SELL"), statuses ("PARTIALLY_FILLED")
-const DEFAULT_STR_CAP: usize = 128;
-const FULL_STR_CAP: usize = 512;
+use crossbeam::channel::Sender;
 
 pub struct Recorder<const VEC: usize, const STR: usize> {
     pub id: Uuid,
@@ -21,28 +16,43 @@ pub struct Recorder<const VEC: usize, const STR: usize> {
     start_now: Instant,
     start_allocations: u64,
     start_reallocations: u64,
+
+    tx: Sender<Log<STR>>,
+    context: Arc<Mutex<Vec<Uuid>>>,
 }
 
 impl<const VEC: usize, const STR: usize> Recorder<VEC, STR> {
-    fn new(name: &'static str, parent_id: Option<Uuid>) -> Self {
+    fn new(name: &'static str, id: Uuid, parent_id: Option<Uuid>, tx: Sender<Log<STR>>, context: Arc<Mutex<Vec<Uuid>>>) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id,
             name,
             parent_id,
             logs: ArrayVec::new(),
-
             start_now: Instant::now(),
             start_allocations: ALLOCATOR.allocations(),
             start_reallocations: ALLOCATOR.reallocations(),
+            tx,
+            context,
         }
+    }
+
+    pub fn get_logs(&self) -> ArrayVec<Log<STR>, VEC> {
+        self.logs.clone()
     }
 
     pub fn log(&mut self, level: LogLevel, event: LogEvent<STR>) {
         self.logs.push(Log::new(level, event, self.id, self.parent_id));
     }
 
-    pub fn scope(name: &'static str, parent_id: Option<Uuid>) -> Self {
-        let mut recorder = Self::new(name, parent_id);
+    pub fn scope(name: &'static str, reference: &mut Reference<STR>) -> Self {
+        let parent_id = reference.current();
+        let tx = reference.tx.clone();
+        let context = Arc::clone(&reference.recorders_context);
+        let id = Uuid::new_v4();
+
+        reference.push_recorder(id);
+
+        let mut recorder = Self::new(name, id, parent_id, tx, context);
         recorder.log(LogLevel::Info, LogEvent::Start(name));
         recorder
     }
@@ -100,12 +110,9 @@ impl<const VEC: usize, const STR: usize> Drop for Recorder<VEC, STR> {
         self.log(LogLevel::Info, LogEvent::End(self.name));
 
         for log in &self.logs {
-            println!("{}", log);
+            let _ = self.tx.send(*log);
         }
+
+        self.context.lock().unwrap().pop();
     }
 }
-
-pub type HotRecorder     = Recorder<HOT_VEC_CAP,     HOT_STR_CAP>;
-pub type DefaultRecorder = Recorder<DEFAULT_VEC_CAP, DEFAULT_STR_CAP>;
-pub type FullRecorder    = Recorder<FULL_VEC_CAP,    FULL_STR_CAP>;
-
