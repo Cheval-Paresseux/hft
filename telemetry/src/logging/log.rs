@@ -63,6 +63,23 @@ pub enum LogEvent<const STR: usize> {
     ProcessCpuUsage(f32),
 }
 
+impl<const STR: usize> LogEvent<STR> {
+    fn to_array_string(s: &str) -> ArrayString<STR> {
+        let mut a = ArrayString::new();
+        let end = s.floor_char_boundary(STR.min(s.len()));
+        a.push_str(&s[..end]);
+        a
+    }
+
+    pub fn message(s: &str) -> Self {
+        Self::Message(Self::to_array_string(s))
+    }
+
+    pub fn metric(key: &str, value: LogValue<STR>) -> Self {
+        Self::Metric(Self::to_array_string(key), value)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Log<const STR: usize> {
     pub timestamp: u64,
@@ -96,3 +113,4 @@ impl<const STR: usize> fmt::Display for Log<STR> {
         )
     }
 }
+

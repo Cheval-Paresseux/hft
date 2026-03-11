@@ -7,4 +7,5 @@ edition = "2024"
 arrayvec = "0.7.6"
 crossbeam = "0.8.4"
 sysinfo = { version = "0.38.3", default-features = false, features = ["system"] }
+tokio = { version = "1.50.0", features = ["full"] }
 uuid = { version = "1.21.0", features = ["v4"] }

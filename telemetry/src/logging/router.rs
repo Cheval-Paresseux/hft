@@ -1,7 +1,10 @@
 use super::log::Log;
+use super::sinks::Sink;
 use uuid::Uuid;
 use crossbeam::channel::{Sender, Receiver, bounded};
 use std::sync::{Arc, Mutex};
+use tokio;
+use tokio::task::JoinHandle;
 
 pub struct Reference<const STR: usize> {
     pub tx: Sender<Log<STR>>,
@@ -29,24 +32,53 @@ impl<const STR: usize> Reference<STR> {
     }
 }
 
-pub struct Router<const STR: usize> {
+pub struct Router<const CAP: usize, const STR: usize> {
     pub tx: Sender<Log<STR>>,
     pub rx: Receiver<Log<STR>>,
+    sinks: Vec<Box<dyn Sink<STR>>>,
 }
 
-impl<const STR: usize> Router<STR> {
+impl<const CAP: usize, const STR: usize> Router<CAP, STR> {
     pub fn new() -> Self {
-        let (tx, rx) = bounded(100);
-        Self { tx, rx }
+        let (tx, rx) = bounded(CAP);
+        Self { tx, rx, sinks: Vec::new() }
     }
 
+    pub fn add_sink(mut self, sink: impl Sink<STR>) -> Self {
+        self.sinks.push(Box::new(sink));
+        self
+    }
+
+    pub fn start(mut self) -> RouterHandle<STR> {
+        let tx = self.tx.clone();
+        let join = tokio::task::spawn_blocking(move || {
+            loop {
+                match self.rx.recv() {
+                    Ok(log) => {
+                        for sink in &mut self.sinks {
+                            sink.write(&log);
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        RouterHandle { tx, join }
+    }
+}
+
+pub struct RouterHandle<const STR: usize> {
+    pub tx: Sender<Log<STR>>,
+    pub join: JoinHandle<()>,
+}
+
+impl<const STR: usize> RouterHandle<STR> {
     pub fn reference(&self) -> Reference<STR> {
         Reference::new(self.tx.clone())
     }
 
-    pub fn print_logs(&self) {
-        while let Ok(log) = self.rx.try_recv() {
-            println!("{}", log);
-        }
+    pub async fn shutdown(self) {
+        drop(self.tx);
+        self.join.await.unwrap();
     }
 }
