@@ -1,11 +1,13 @@
 use super::metrics::*;
 use super::log::{Log, LogLevel, LogEvent};
-use super::router::{Reference};
+use super::router::{RouterReference};
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use arrayvec::ArrayVec;
 use crossbeam::channel::Sender;
+
+// ── Recorder ──────────────────────────────────────────────────────────────────
 
 pub struct Recorder<const VEC: usize, const STR: usize> {
     pub id: Uuid,
@@ -44,7 +46,7 @@ impl<const VEC: usize, const STR: usize> Recorder<VEC, STR> {
         self.logs.push(Log::new(level, event, self.id, self.parent_id));
     }
 
-    pub fn scope(name: &'static str, reference: &mut Reference<STR>) -> Self {
+    pub fn scope(name: &'static str, reference: &mut RouterReference<STR>) -> Self {
         let parent_id = reference.current();
         let tx = reference.tx.clone();
         let context = Arc::clone(&reference.recorders_context);
@@ -115,4 +117,11 @@ impl<const VEC: usize, const STR: usize> Drop for Recorder<VEC, STR> {
 
         self.context.lock().unwrap().pop();
     }
+}
+
+// ── Unit Tests ────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    
 }

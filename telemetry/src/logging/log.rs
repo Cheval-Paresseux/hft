@@ -3,6 +3,8 @@ use std::fmt;
 use uuid::Uuid;
 use arrayvec::ArrayString;
 
+// ── Log Content ───────────────────────────────────────────────────────────────
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogLevel {
     SysInfo,
@@ -80,18 +82,20 @@ impl<const STR: usize> LogEvent<STR> {
     }
 }
 
+// ── Log ───────────────────────────────────────────────────────────────────────
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Log<const STR: usize> {
     pub timestamp: u64,
     pub level: LogLevel,
     pub event: LogEvent<STR>,
 
-    pub logger_id: Uuid,
-    pub parent_logger_id: Option<Uuid>,
+    pub recorder_id: Uuid,
+    pub parent_recorder_id: Option<Uuid>,
 }
 
 impl<const STR: usize> Log<STR> {
-    pub fn new(level: LogLevel, event: LogEvent<STR>, logger_id: Uuid, parent_logger_id: Option<Uuid>) -> Self {
+    pub fn new(level: LogLevel, event: LogEvent<STR>, recorder_id: Uuid, parent_recorder_id: Option<Uuid>) -> Self {
         let timestamp: u64 = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos() as u64;
 
         Self {
@@ -99,8 +103,8 @@ impl<const STR: usize> Log<STR> {
             level,
             event,
 
-            logger_id,
-            parent_logger_id,
+            recorder_id,
+            parent_recorder_id,
         }
     }
 }
@@ -109,8 +113,14 @@ impl<const STR: usize> fmt::Display for Log<STR> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f, "{:?} [{:?}] - {:?} --- [id: {:?} | parent_id: {:?}]", 
-            self.timestamp, self.level, self.event, self.logger_id, self.parent_logger_id
+            self.timestamp, self.level, self.event, self.recorder_id, self.parent_recorder_id
         )
     }
 }
 
+// ── Unit Tests ────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    
+}

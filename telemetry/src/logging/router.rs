@@ -6,12 +6,14 @@ use std::sync::{Arc, Mutex};
 use tokio;
 use tokio::task::JoinHandle;
 
-pub struct Reference<const STR: usize> {
+// ── Router Reference ──────────────────────────────────────────────────────────
+
+pub struct RouterReference<const STR: usize> {
     pub tx: Sender<Log<STR>>,
     pub recorders_context: Arc<Mutex<Vec<Uuid>>>,
 }
 
-impl<const STR: usize> Reference<STR> {
+impl<const STR: usize> RouterReference<STR> {
     pub fn new(tx: Sender<Log<STR>>) -> Self {
         Self {
             tx,
@@ -31,6 +33,8 @@ impl<const STR: usize> Reference<STR> {
         self.recorders_context.lock().unwrap().last().copied()
     }
 }
+
+// ── Router ────────────────────────────────────────────────────────────────────
 
 pub struct Router<const CAP: usize, const STR: usize> {
     pub tx: Sender<Log<STR>>,
@@ -67,18 +71,27 @@ impl<const CAP: usize, const STR: usize> Router<CAP, STR> {
     }
 }
 
+// ── Router Handle ─────────────────────────────────────────────────────────────
+
 pub struct RouterHandle<const STR: usize> {
     pub tx: Sender<Log<STR>>,
     pub join: JoinHandle<()>,
 }
 
 impl<const STR: usize> RouterHandle<STR> {
-    pub fn reference(&self) -> Reference<STR> {
-        Reference::new(self.tx.clone())
+    pub fn reference(&self) -> RouterReference<STR> {
+        RouterReference::new(self.tx.clone())
     }
 
     pub async fn shutdown(self) {
         drop(self.tx);
         self.join.await.unwrap();
     }
+}
+
+// ── Unit Tests ────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    
 }

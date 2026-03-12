@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 arrayvec = "0.7.6"
+chrono = "0.4.44"
 crossbeam = "0.8.4"
+crossterm = "0.29.0"
+ratatui = "0.30.0"
 sysinfo = { version = "0.38.3", default-features = false, features = ["system"] }
 tokio = { version = "1.50.0", features = ["full"] }
 uuid = { version = "1.21.0", features = ["v4"] }

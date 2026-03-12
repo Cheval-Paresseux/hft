@@ -1,6 +1,8 @@
 use std::alloc::{GlobalAlloc, System, Layout};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+// ── Allocators Counter ────────────────────────────────────────────────────────
+
 pub struct CountingAllocator {
     allocations: AtomicU64,
     reallocations: AtomicU64,
@@ -41,9 +43,8 @@ impl CountingAllocator {
     }
 }
 
+// ── Unit Tests ────────────────────────────────────────────────────────────────
 
-
-// ========== UNIT TESTS ==========
 #[cfg(test)]
 mod tests {
     use super::*;

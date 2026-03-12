@@ -6,9 +6,9 @@ mod router;
 
 pub use metrics::*;
 pub use sinks::*;
-pub use log::{Log, LogEvent, LogLevel, LogValue};
+pub use log::{Log, LogLevel, LogEvent, LogValue};
 pub use recorder::Recorder;
-pub use router::{Reference, Router};
+pub use router::{Router, RouterReference, RouterHandle};
 
 
 const ROUTER_CAP: usize = 1024;

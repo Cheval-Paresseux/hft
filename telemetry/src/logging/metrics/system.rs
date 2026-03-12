@@ -2,6 +2,20 @@ use std::sync::{LazyLock, Mutex, OnceLock};
 use sysinfo::{ProcessesToUpdate, ProcessRefreshKind, System};
 use arrayvec::ArrayString;
 
+// ── Global System Variable ────────────────────────────────────────────────────
+
+static SYSTEM: LazyLock<Mutex<System>> = LazyLock::new(|| {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    SYSTEM_TOTAL_MEMORY.get_or_init(|| sys.total_memory());
+    SYSTEM_TOTAL_SWAP.get_or_init(|| sys.total_swap());
+
+    Mutex::new(sys)
+});
+
+// ── Computed Only Once -───────────────────────────────────────────────────────
+
 static SYSTEM_NAME: OnceLock<Option<String>> = OnceLock::new();
 static SYSTEM_KERNEL_VERSION: OnceLock<Option<String>> = OnceLock::new();
 static SYSTEM_OS_VERSION: OnceLock<Option<String>> = OnceLock::new();
@@ -14,15 +28,7 @@ static SYSTEM_TOTAL_SWAP: OnceLock<u64> = OnceLock::new();
 static CURRENT_PID: OnceLock<sysinfo::Pid> = OnceLock::new();
 static PROCESS_START_TIME: OnceLock<u64> = OnceLock::new();
 
-static SYSTEM: LazyLock<Mutex<System>> = LazyLock::new(|| {
-    let mut sys = System::new_all();
-    sys.refresh_all();
-
-    SYSTEM_TOTAL_MEMORY.get_or_init(|| sys.total_memory());
-    SYSTEM_TOTAL_SWAP.get_or_init(|| sys.total_swap());
-
-    Mutex::new(sys)
-});
+// ── Informations -────────────────────-────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SystemInformation<const STR: usize> {
@@ -56,6 +62,8 @@ pub struct ProcessInformation {
     pub run_time: u64,
     pub cpu_usage: f32,
 }
+
+// ── Retrieve Infos -────────────────────-──────────────────────────────────────
 
 pub fn system_information<const STR: usize>() -> SystemInformation<STR> {
     let _ = &*SYSTEM;
@@ -112,6 +120,8 @@ pub fn process_information() -> ProcessInformation {
     }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 fn to_array_string<const STR: usize>(s: &str) -> ArrayString<STR> {
     let mut a = ArrayString::new();
     let truncated = &s[..s.len().min(STR)];
@@ -121,4 +131,10 @@ fn to_array_string<const STR: usize>(s: &str) -> ArrayString<STR> {
 
 fn to_opt_array_string<const STR: usize>(s: Option<&str>) -> Option<ArrayString<STR>> {
     s.map(to_array_string::<STR>)
+}
+
+// ── Unit Tests ────────────────────────────────────────────────────────────────
+#[cfg(test)]
+mod tests {
+    
 }
