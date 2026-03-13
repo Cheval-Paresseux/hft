@@ -1,4 +1,4 @@
-use super::super::log::{Log, LogLevel};
+use crate::logging::{Log, LogLevel};
 use super::common::{Sink, format_log};
 
 
@@ -21,4 +21,3 @@ impl<const STR: usize> Sink<STR> for StderrSink {
         }
     }
 }
-

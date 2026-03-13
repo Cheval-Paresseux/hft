@@ -1,6 +1,6 @@
-use super::metrics::*;
 use super::log::{Log, LogLevel, LogEvent};
 use super::router::{RouterReference};
+use crate::metrics::*;
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -60,7 +60,7 @@ impl<const VEC: usize, const STR: usize> Recorder<VEC, STR> {
     }
 
     pub fn with_system_information(mut self) -> Self {
-        let system_information = system_information::<STR>();
+        let system_information = system_info::<STR>();
         self.log(LogLevel::SysInfo, LogEvent::SystemName(system_information.name));
         self.log(LogLevel::SysInfo, LogEvent::SystemKernelVersion(system_information.kernel_version));
         self.log(LogLevel::SysInfo, LogEvent::SystemOsVersion(system_information.os_version));
@@ -76,7 +76,7 @@ impl<const VEC: usize, const STR: usize> Recorder<VEC, STR> {
     }
 
     pub fn with_global_information(mut self) -> Self {
-        let global_information = global_information();
+        let global_information = global_info();
         let (one, five, fifteen) = global_information.load_average;
         self.log(LogLevel::GlobalInfo, LogEvent::GlobalAvailableMemory(global_information.available_memory));
         self.log(LogLevel::GlobalInfo, LogEvent::GlobalUsedMemory(global_information.used_memory));
@@ -89,7 +89,7 @@ impl<const VEC: usize, const STR: usize> Recorder<VEC, STR> {
     }
 
     pub fn with_process_information(mut self) -> Self {
-        let process_information = process_information();
+        let process_information = process_info();
         self.log(LogLevel::ProcessInfo, LogEvent::ProcessMemory(process_information.memory));
         self.log(LogLevel::ProcessInfo, LogEvent::ProcessVirtualMemory(process_information.virtual_memory));
         self.log(LogLevel::ProcessInfo, LogEvent::ProcessStartTime(process_information.start_time));
@@ -123,5 +123,88 @@ impl<const VEC: usize, const STR: usize> Drop for Recorder<VEC, STR> {
 
 #[cfg(test)]
 mod tests {
-    
+    use super::*;
+    use std::sync::{Arc, Mutex};
+    use crossbeam::channel::unbounded;
+
+    #[test]
+    fn test_scope_creation() {
+        let (tx, _) = unbounded();
+        let context = Arc::new(Mutex::new(Vec::new()));
+        let mut router_ref = RouterReference {
+            tx: tx.clone(),
+            recorders_context: Arc::clone(&context),
+        };
+
+        let recorder = Recorder::<8, 32>::scope("TestScope", &mut router_ref);
+
+        assert_eq!(recorder.name, "TestScope");
+        assert!(recorder.logs.len() >= 1);
+
+        match recorder.logs[0].event {
+            LogEvent::Start(name) => assert_eq!(name, "TestScope"),
+            _ => panic!("Expected LogEvent::Start"),
+        }
+    }
+
+    #[test]
+    fn test_log_message() {
+        let (tx, _) = unbounded();
+        let context = Arc::new(Mutex::new(Vec::new()));
+        let mut router_ref = RouterReference {
+            tx: tx.clone(),
+            recorders_context: Arc::clone(&context),
+        };
+
+        let mut recorder = Recorder::<8, 32>::scope("TestScope", &mut router_ref);
+        recorder.log(LogLevel::Info, LogEvent::message("Hello"));
+
+        match recorder.logs[1].event {
+            LogEvent::Message(ref msg) => assert_eq!(msg.as_str(), "Hello"),
+            _ => panic!("Expected LogEvent::Message"),
+        }
+    }
+
+    #[test]
+    fn test_with_system_global_process() {
+        let (tx, _) = unbounded();
+        let context = Arc::new(Mutex::new(Vec::new()));
+        let mut router_ref = RouterReference {
+            tx: tx.clone(),
+            recorders_context: Arc::clone(&context),
+        };
+
+        let recorder = Recorder::<32, 64>::scope("TestScope", &mut router_ref)
+            .with_system_information()
+            .with_global_information()
+            .with_process_information();
+
+        let has_sys_info = recorder.logs.iter().any(|l| l.level == LogLevel::SysInfo);
+        let has_global_info = recorder.logs.iter().any(|l| l.level == LogLevel::GlobalInfo);
+        let has_proc_info = recorder.logs.iter().any(|l| l.level == LogLevel::ProcessInfo);
+
+        assert!(has_sys_info);
+        assert!(has_global_info);
+        assert!(has_proc_info);
+    }
+
+    #[test]
+    fn test_drop_sends_logs() {
+        let (tx, rx) = unbounded();
+        let context = Arc::new(Mutex::new(Vec::new()));
+        let mut router_ref = RouterReference {
+            tx: tx.clone(),
+            recorders_context: Arc::clone(&context),
+        };
+
+        {
+            let _recorder = Recorder::<8, 32>::scope("TestScope", &mut router_ref);
+        }
+
+        let logs: Vec<Log<32>> = rx.try_iter().collect();
+        assert!(logs.iter().any(|l| match l.event {
+            LogEvent::End(name) => name == "TestScope",
+            _ => false,
+        }));
+    }
 }

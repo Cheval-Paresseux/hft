@@ -122,5 +122,73 @@ impl<const STR: usize> fmt::Display for Log<STR> {
 
 #[cfg(test)]
 mod tests {
-    
+    use super::*;
+    use uuid::Uuid;
+
+    #[test]
+    fn test_create_log_message() {
+        let recorder_id = Uuid::new_v4();
+        let log = Log::<32>::new(
+            LogLevel::Info,
+            LogEvent::message("Hello, world!"),
+            recorder_id,
+            None,
+        );
+
+        assert!(log.timestamp > 0);
+        assert_eq!(log.level, LogLevel::Info);
+        assert_eq!(log.recorder_id, recorder_id);
+        assert!(log.parent_recorder_id.is_none());
+
+        match log.event {
+            LogEvent::Message(ref msg) => assert_eq!(msg.as_str(), "Hello, world!"),
+            _ => panic!("Expected LogEvent::Message"),
+        }
+    }
+
+    #[test]
+    fn test_create_metric() {
+        let value = LogValue::Int(42);
+        let event = LogEvent::<16>::metric("my_metric", value);
+
+        match event {
+            LogEvent::Metric(ref key, LogValue::Int(v)) => {
+                assert_eq!(key.as_str(), "my_metric");
+                assert_eq!(v, 42);
+            },
+            _ => panic!("Expected LogEvent::Metric with Int value"),
+        }
+    }
+
+    #[test]
+    fn test_message_truncation() {
+        let long_msg = "This is a very long message";
+        let event = LogEvent::<8>::message(long_msg);
+
+        match event {
+            LogEvent::Message(ref msg) => {
+                assert_eq!(msg.as_str(), &long_msg[..8]);
+            },
+            _ => panic!("Expected LogEvent::Message"),
+        }
+    }
+
+    #[test]
+    fn test_log_display() {
+        let recorder_id = Uuid::new_v4();
+        let parent_id = Some(Uuid::new_v4());
+
+        let log = Log::<32>::new(
+            LogLevel::Warn,
+            LogEvent::message("Warning!"),
+            recorder_id,
+            parent_id,
+        );
+
+        let s = format!("{}", log);
+        assert!(s.contains("Warn"));
+        assert!(s.contains("Warning!"));
+        assert!(s.contains(&recorder_id.to_string()));
+        assert!(s.contains(&parent_id.unwrap().to_string()));
+    }
 }

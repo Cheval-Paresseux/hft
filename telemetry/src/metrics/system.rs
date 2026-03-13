@@ -65,7 +65,7 @@ pub struct ProcessInformation {
 
 // ── Retrieve Infos -────────────────────-──────────────────────────────────────
 
-pub fn system_information<const STR: usize>() -> SystemInformation<STR> {
+pub fn system_info<const STR: usize>() -> SystemInformation<STR> {
     let _ = &*SYSTEM;
 
     SystemInformation {
@@ -82,7 +82,7 @@ pub fn system_information<const STR: usize>() -> SystemInformation<STR> {
     }
 }
 
-pub fn global_information() -> GlobalInformation {
+pub fn global_info() -> GlobalInformation {
     let mut sys = SYSTEM.lock().unwrap();
     sys.refresh_memory();
     sys.refresh_cpu_usage();
@@ -98,7 +98,7 @@ pub fn global_information() -> GlobalInformation {
     }
 }
 
-pub fn process_information() -> ProcessInformation {
+pub fn process_info() -> ProcessInformation {
     let mut sys = SYSTEM.lock().unwrap();
     let pid = *CURRENT_PID.get_or_init(|| sysinfo::get_current_pid().unwrap());
 
@@ -134,7 +134,147 @@ fn to_opt_array_string<const STR: usize>(s: Option<&str>) -> Option<ArrayString<
 }
 
 // ── Unit Tests ────────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 mod tests {
-    
+    use super::*;
+
+    // ── to_array_string
+    #[test]
+    fn test_to_array_string_fits_exactly() {
+        let result = to_array_string::<5>("hello");
+        assert_eq!(result.as_str(), "hello");
+    }
+
+    #[test]
+    fn test_to_array_string_truncates_when_too_long() {
+        let result = to_array_string::<4>("hello");
+        assert_eq!(result.as_str(), "hell");
+    }
+
+    #[test]
+    fn test_to_array_string_handles_empty() {
+        let result = to_array_string::<8>("");
+        assert_eq!(result.as_str(), "");
+    }
+
+    // ── to_opt_array_string
+    #[test]
+    fn test_to_opt_array_string_some_value() {
+        let result = to_opt_array_string::<8>(Some("linux"));
+
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().as_str(), "linux");
+    }
+
+    #[test]
+    fn test_to_opt_array_string_none_value() {
+        let result = to_opt_array_string::<8>(None);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_to_opt_array_string_truncates() {
+        let result = to_opt_array_string::<3>(Some("abcdef"));
+        assert_eq!(result.unwrap().as_str(), "abc");
+    }
+
+    // ── system_info
+    #[test]
+    fn test_system_info_returns_valid_struct() {
+        let info = system_info::<64>();
+
+        assert!(info.boot_time > 1_000_000_000, "boot_time looks implausible: {}", info.boot_time);
+        assert!(info.total_memory > 0, "total_memory should be non-zero");
+    }
+
+    #[test]
+    fn test_system_info_cpu_architecture_non_empty() {
+        let info = system_info::<64>();
+        assert!(!info.cpu_architecture.is_empty(), "cpu_architecture should not be empty");
+    }
+
+    #[test]
+    fn test_system_info_truncates_to_const_str() {
+        let info = system_info::<4>();
+
+        assert!(info.cpu_architecture.len() <= 4);
+        if let Some(name) = info.name {
+            assert!(name.len() <= 4);
+        }
+    }
+
+    #[test]
+    fn test_system_info_is_stable_across_calls() {
+        let a = system_info::<64>();
+        let b = system_info::<64>();
+
+        assert_eq!(a.total_memory, b.total_memory);
+        assert_eq!(a.total_swap, b.total_swap);
+        assert_eq!(a.boot_time, b.boot_time);
+        assert_eq!(a.cpu_architecture, b.cpu_architecture);
+    }
+
+    // ── global_info
+    #[test]
+    fn test_global_info_memory_bounds() {
+        let total = system_info::<64>().total_memory;
+        let info = global_info();
+
+        assert!(info.used_memory <= total, "used_memory ({}) exceeds total ({})", info.used_memory, total);
+        assert!(info.available_memory <= total, "available_memory ({}) exceeds total ({})", info.available_memory, total);
+    }
+
+    #[test]
+    fn test_global_info_swap_bounds() {
+        let total_swap = system_info::<64>().total_swap;
+        let info = global_info();
+
+        assert!(info.used_swap <= total_swap, "used_swap ({}) exceeds total_swap ({})", info.used_swap, total_swap);
+        assert!(info.free_swap <= total_swap, "free_swap ({}) exceeds total_swap ({})", info.free_swap, total_swap);
+    }
+
+    #[test]
+    fn test_global_info_cpu_usage_in_range() {
+        let info = global_info();
+        assert!(info.cpu_usage >= 0.0 && info.cpu_usage <= 100.0,
+            "cpu_usage out of range: {}", info.cpu_usage);
+    }
+
+    #[test]
+    fn test_global_info_load_average_non_negative() {
+        let (one, five, fifteen) = global_info().load_average;
+        assert!(one >= 0.0, "1m load average is negative: {one}");
+        assert!(five >= 0.0, "5m load average is negative: {five}");
+        assert!(fifteen >= 0.0, "15m load average is negative: {fifteen}");
+    }
+
+    // ── process_info
+    #[test]
+    fn test_process_info_memory_non_zero() {
+        let info = process_info();
+
+        assert!(info.memory > 0, "current process should have non-zero memory usage");
+        assert!(info.virtual_memory >= info.memory,"virtual_memory ({}) should be >= physical memory ({})", info.virtual_memory, info.memory);
+    }
+
+    #[test]
+    fn test_process_info_start_time_plausible() {
+        let info = process_info();
+        assert!(info.start_time > 1_000_000_000,"start_time looks implausible: {}", info.start_time);
+    }
+
+    #[test]
+    fn test_process_info_start_time_is_stable() {
+        let a = process_info();
+        let b = process_info();
+        
+        assert_eq!(a.start_time, b.start_time, "start_time changed between calls");
+    }
+
+    #[test]
+    fn test_process_info_cpu_usage_in_range() {
+        let info = process_info();
+        assert!(info.cpu_usage >= 0.0, "cpu_usage is negative: {}", info.cpu_usage);
+    }
 }
