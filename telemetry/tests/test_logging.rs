@@ -1,6 +1,6 @@
 use telemetry::{
     HotRouter, HotRecorder, RouterReference,
-    LogLevel, LogEvent,
+    RecorderLevel, LogLevel, LogEvent,
     Sink, StderrSink, FileSink, format_log
 };
 use std::thread;
@@ -92,20 +92,20 @@ async fn nested_scopes_build_tree() {
 
 fn nested_logs(mut router_ref: RouterReference<32>) {
     let a = thread::spawn(move || {
-        let _0 = HotRecorder::scope("Level 0", &mut router_ref);
+        let _0 = HotRecorder::scope("Level 0", RecorderLevel::Operational, &mut router_ref);
         thread::sleep(Duration::from_millis(10));
 
         {
-            let _10 = HotRecorder::scope("Level 1 - 0", &mut router_ref);
+            let _10 = HotRecorder::scope("Level 1 - 0", RecorderLevel::Operational, &mut router_ref);
             thread::sleep(Duration::from_millis(10));
         }
 
         {
-            let _11 = HotRecorder::scope("Level 1 - 1", &mut router_ref);
+            let _11 = HotRecorder::scope("Level 1 - 1", RecorderLevel::Operational, &mut router_ref);
             thread::sleep(Duration::from_millis(10));
 
             {
-                let mut _20 = HotRecorder::scope("Level 2 - 0", &mut router_ref);
+                let mut _20 = HotRecorder::scope("Level 2 - 0", RecorderLevel::Operational, &mut router_ref);
                 thread::sleep(Duration::from_millis(10));
 
                 _20.log(LogLevel::Info, LogEvent::message("test_log"));

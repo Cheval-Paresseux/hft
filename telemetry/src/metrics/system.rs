@@ -69,13 +69,13 @@ pub fn system_info<const STR: usize>() -> SystemInformation<STR> {
     let _ = &*SYSTEM;
 
     SystemInformation {
-        name: to_opt_array_string::<STR>(SYSTEM_NAME.get_or_init(|| System::name()).as_deref()),
-        kernel_version: to_opt_array_string::<STR>(SYSTEM_KERNEL_VERSION.get_or_init(|| System::kernel_version()).as_deref()),
-        os_version: to_opt_array_string::<STR>(SYSTEM_OS_VERSION.get_or_init(|| System::os_version()).as_deref()),
-        host_name: to_opt_array_string::<STR>(SYSTEM_HOST_NAME.get_or_init(|| System::host_name()).as_deref()),
-        cpu_architecture: to_array_string::<STR>(SYSTEM_CPU_ARCHITECTURE.get_or_init(|| System::cpu_arch())),
-        core_count: *SYSTEM_CORE_COUNT.get_or_init(|| System::physical_core_count()),
-        boot_time: *SYSTEM_BOOT_TIME.get_or_init(|| System::boot_time()),
+        name: to_opt_array_string::<STR>(SYSTEM_NAME.get_or_init(System::name).as_deref()),
+        kernel_version: to_opt_array_string::<STR>(SYSTEM_KERNEL_VERSION.get_or_init(System::kernel_version).as_deref()),
+        os_version: to_opt_array_string::<STR>(SYSTEM_OS_VERSION.get_or_init(System::os_version).as_deref()),
+        host_name: to_opt_array_string::<STR>(SYSTEM_HOST_NAME.get_or_init(System::host_name).as_deref()),
+        cpu_architecture: to_array_string::<STR>(SYSTEM_CPU_ARCHITECTURE.get_or_init(System::cpu_arch)),
+        core_count: *SYSTEM_CORE_COUNT.get_or_init(System::physical_core_count),
+        boot_time: *SYSTEM_BOOT_TIME.get_or_init(System::boot_time),
         uptime: System::uptime(),
         total_memory: *SYSTEM_TOTAL_MEMORY.get().unwrap(),
         total_swap: *SYSTEM_TOTAL_SWAP.get().unwrap(),

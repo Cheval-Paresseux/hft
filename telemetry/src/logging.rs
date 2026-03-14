@@ -6,7 +6,7 @@ mod router;
 
 pub use self::{
     log::{LogLevel, LogValue, LogEvent, Log},
-    recorder::Recorder,
+    recorder::{RecorderLevel, Recorder},
     router::{Router, RouterHandle, RouterReference},
 };
 

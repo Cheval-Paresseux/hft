@@ -27,18 +27,19 @@ impl<const CAP: usize, const STR: usize> Router<CAP, STR> {
     pub fn start(mut self) -> RouterHandle<STR> {
         let tx = self.tx.clone();
         let join = tokio::task::spawn_blocking(move || {
-            loop {
-                match self.rx.recv() {
-                    Ok(log) => {
-                        for sink in &mut self.sinks {
-                            sink.write(&log);
-                        }
-                    }
-                    Err(_) => break,
+            while let Ok(log) = self.rx.recv() {
+                for sink in &mut self.sinks {
+                    sink.write(&log);
                 }
             }
         });
         RouterHandle { tx, join }
+    }
+}
+
+impl<const CAP: usize, const STR: usize> Default for Router<CAP, STR> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

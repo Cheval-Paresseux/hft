@@ -1,28 +1,63 @@
 use crate::logging::Log;
 use super::common::{Sink, format_log};
 use std::fs::{File, OpenOptions};
-use std::io::Write;
-use std::io;
+use std::io::{self, BufWriter, Write};
 
 // ── Sinks ─────────────────────────────────────────────────────────────────────
 
+pub enum FlushFrequency {
+    EveryWrite,
+    EveryNWrites(usize),
+    OnDrop,
+}
+
 pub struct FileSink {
-    file: File,
+    file: BufWriter<File>,
+    flush_frequency: FlushFrequency,
+    write_count: usize,
 }
 
 impl FileSink {
     pub fn new(path: &str) -> io::Result<Self> {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
-        Ok(Self { file })
+        let file = BufWriter::new(
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)?,
+        );
+        Ok(Self {
+            file,
+            flush_frequency: FlushFrequency::OnDrop,
+            write_count: 0,
+        })
+    }
+
+    pub fn with_flush_frequency(mut self, flush_frequency: FlushFrequency) -> Self {
+        self.flush_frequency = flush_frequency;
+        self
     }
 }
 
 impl<const STR: usize> Sink<STR> for FileSink {
     fn write(&mut self, log: &Log<STR>) {
         writeln!(self.file, "{}", format_log(log, true, false)).ok();
+        self.write_count += 1;
+
+        match &self.flush_frequency {
+            FlushFrequency::EveryWrite => { self.file.flush().ok(); }
+            FlushFrequency::EveryNWrites(n) => {
+                if self.write_count.is_multiple_of(*n) {
+                    self.file.flush().ok();
+                }
+            }
+            FlushFrequency::OnDrop => {}
+        }
+    }
+}
+
+impl Drop for FileSink {
+    fn drop(&mut self) {
+        self.file.flush().ok();
     }
 }
 
@@ -69,6 +104,7 @@ mod tests {
 
         let log = make_log::<32>(LogLevel::Info, "hello from filesink");
         sink.write(&log);
+        drop(sink);
 
         let contents = read_file(&path);
         assert!(contents.contains("hello from filesink"), "log message should appear in file, got:\n{contents}");
@@ -85,6 +121,7 @@ mod tests {
         sink.write(&make_log::<32>(LogLevel::Info, "first"));
         sink.write(&make_log::<32>(LogLevel::Warn, "second"));
         sink.write(&make_log::<32>(LogLevel::Error, "third"));
+        drop(sink);
 
         let contents = read_file(&path);
         let line_count = contents.lines().count();

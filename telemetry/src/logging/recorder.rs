@@ -1,5 +1,5 @@
 use super::log::{Log, LogLevel, LogEvent};
-use super::router::{RouterReference};
+use super::router::RouterReference;
 use crate::metrics::*;
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
@@ -8,6 +8,13 @@ use arrayvec::ArrayVec;
 use crossbeam::channel::Sender;
 
 // ── Recorder ──────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RecorderLevel {
+    Observational,
+    Operational,
+    Critical,
+}
 
 pub struct Recorder<const VEC: usize, const STR: usize> {
     pub id: Uuid,
@@ -46,7 +53,7 @@ impl<const VEC: usize, const STR: usize> Recorder<VEC, STR> {
         self.logs.push(Log::new(level, event, self.id, self.parent_id));
     }
 
-    pub fn scope(name: &'static str, reference: &mut RouterReference<STR>) -> Self {
+    pub fn scope(name: &'static str, recorder_level: RecorderLevel, reference: &mut RouterReference<STR>) -> Self {
         let parent_id = reference.current();
         let tx = reference.tx.clone();
         let context = Arc::clone(&reference.recorders_context);
@@ -55,7 +62,7 @@ impl<const VEC: usize, const STR: usize> Recorder<VEC, STR> {
         reference.push_recorder(id);
 
         let mut recorder = Self::new(name, id, parent_id, tx, context);
-        recorder.log(LogLevel::Info, LogEvent::Start(name));
+        recorder.log(LogLevel::Info, LogEvent::Start(name, recorder_level));
         recorder
     }
 
@@ -112,10 +119,12 @@ impl<const VEC: usize, const STR: usize> Drop for Recorder<VEC, STR> {
         self.log(LogLevel::Info, LogEvent::End(self.name));
 
         for log in &self.logs {
-            let _ = self.tx.send(*log);
+            let _ = self.tx.try_send(*log);
         }
 
-        self.context.lock().unwrap().pop();
+        if let Ok(mut ctx) = self.context.lock() {
+            ctx.pop();
+        }
     }
 }
 
@@ -136,13 +145,13 @@ mod tests {
             recorders_context: Arc::clone(&context),
         };
 
-        let recorder = Recorder::<8, 32>::scope("TestScope", &mut router_ref);
+        let recorder = Recorder::<8, 32>::scope("TestScope", RecorderLevel::Operational, &mut router_ref);
 
         assert_eq!(recorder.name, "TestScope");
         assert!(recorder.logs.len() >= 1);
 
         match recorder.logs[0].event {
-            LogEvent::Start(name) => assert_eq!(name, "TestScope"),
+            LogEvent::Start(name, _) => assert_eq!(name, "TestScope"),
             _ => panic!("Expected LogEvent::Start"),
         }
     }
@@ -156,7 +165,7 @@ mod tests {
             recorders_context: Arc::clone(&context),
         };
 
-        let mut recorder = Recorder::<8, 32>::scope("TestScope", &mut router_ref);
+        let mut recorder = Recorder::<8, 32>::scope("TestScope", RecorderLevel::Operational, &mut router_ref);
         recorder.log(LogLevel::Info, LogEvent::message("Hello"));
 
         match recorder.logs[1].event {
@@ -174,7 +183,7 @@ mod tests {
             recorders_context: Arc::clone(&context),
         };
 
-        let recorder = Recorder::<32, 64>::scope("TestScope", &mut router_ref)
+        let recorder = Recorder::<32, 64>::scope("TestScope", RecorderLevel::Operational, &mut router_ref)
             .with_system_information()
             .with_global_information()
             .with_process_information();
@@ -198,7 +207,7 @@ mod tests {
         };
 
         {
-            let _recorder = Recorder::<8, 32>::scope("TestScope", &mut router_ref);
+            let _recorder = Recorder::<8, 32>::scope("TestScope", RecorderLevel::Operational, &mut router_ref);
         }
 
         let logs: Vec<Log<32>> = rx.try_iter().collect();

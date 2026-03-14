@@ -1,3 +1,4 @@
+use super::recorder::RecorderLevel;
 use std::time::SystemTime;
 use std::fmt;
 use uuid::Uuid;
@@ -5,15 +6,15 @@ use arrayvec::ArrayString;
 
 // ── Log Content ───────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LogLevel {
-    SysInfo,
-    GlobalInfo,
-    ProcessInfo,
-    Info,
-    Warn,
-    Error,
     Fatal,
+    Error,
+    Warn,
+    Info,
+    ProcessInfo,
+    GlobalInfo,
+    SysInfo,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -27,7 +28,7 @@ pub enum LogValue<const STR: usize> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogEvent<const STR: usize> {
     // -- Standard Events ---
-    Start(&'static str),
+    Start(&'static str, RecorderLevel),
     End(&'static str),
     Duration(u64),
     Allocations(u64),
